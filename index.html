@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>記事エディター</title>
+</head>
+<body>
+    <header>
+        <button id="open">サイトのフォルダを選ぶ</button>
+        <button id="new" disabled>新しい記事</button>
+        <button id="save" class="main" disabled>保存 (Ctrl+S)</button>
+        <span id="status">最初に、サイトのフォルダ(index.html がある場所)を選んでください</span>
+    </header>
+
+    <nav id="list"></nav>
+
+    <fieldset id="form" disabled>
+        <label>日付<input type="date" id="date"></label>
+        <label>タイトル<input type="text" id="title"></label>
+        <label>サムネイル
+            <select id="thumb"><option value="">自動(最初の画像)</option></select>
+        </label>
+
+        <div id="tools">
+            <button type="button" data-f="h">見出し</button>
+            <button type="button" data-f="b">太字</button>
+            <button type="button" data-f="red">赤字</button>
+            <button type="button" data-f="big">大きい文字</button>
+            <button type="button" data-f="ul">リスト</button>
+            <button type="button" data-f="q">引用</button>
+            <button type="button" data-f="hr">区切り線</button>
+            <button type="button" data-f="a">リンク</button>
+        </div>
+
+        <label>本文(マークダウン)<textarea id="body"></textarea></label>
+        <div class="row">
+            <button id="addimg" type="button">画像を挿入</button>
+            <button id="del" type="button">この記事を削除</button>
+            <input type="file" id="file" accept="image/*" multiple hidden>
+        </div>
+        <p class="hint">画像は貼り付け・ドラッグ&amp;ドロップでも入れられます。前後を空行で区切ってください。<br>
+            <code>![ここ](…)</code> の文字が画像の下のキャプションになります(空なら出ません)。</p>
+    </fieldset>
+
+    <section id="preview">
+        <div class="card">
+            <h1 id="p_title"></h1>
+            <p id="p_date"></p>
+            <div id="p_text"></div>
+        </div>
+    </section>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

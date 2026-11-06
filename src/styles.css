@@ -1,0 +1,259 @@
+:root {
+    --navy: #154261;
+    --teal: #57A897;
+    --gray: #eee;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+}
+
+body {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    background: #f6f6f6;
+    color: #222;
+    font-family: sans-serif;
+}
+
+button {
+    font: inherit;
+    color: var(--navy);
+    background: #fff;
+    border: 2px solid var(--navy);
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+
+button.main {
+    background: var(--navy);
+    color: #fff;
+    font-weight: 700;
+}
+
+button:disabled {
+    opacity: .4;
+    cursor: default;
+}
+
+/* ---------------- ヘッダー ---------------- */
+header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 3px solid var(--teal);
+}
+
+#status {
+    margin-left: auto;
+    opacity: .7;
+    font-size: .9rem;
+}
+
+/* ---------------- 記事一覧 ---------------- */
+#list {
+    overflow: auto;
+    padding: 12px;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fff;
+}
+
+#list .item {
+    text-align: left;
+    border-width: 1px;
+    padding: 8px 10px;
+}
+
+#list .item.now {
+    background: var(--teal);
+    color: #fff;
+    border-color: var(--teal);
+}
+
+#list .item small {
+    display: block;
+    opacity: .7;
+}
+
+/* ---------------- 入力フォーム ---------------- */
+#form {
+    border: 0;
+    margin: 0;
+    padding: 16px;
+    min-width: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: .85rem;
+}
+
+#form input,
+#form textarea,
+#form select {
+    font: inherit;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    padding: 8px;
+    background: #fff;
+}
+
+#body {
+    flex: 1;
+    min-height: 300px;
+    resize: none;
+    line-height: 1.7;
+}
+
+.row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.hint {
+    font-size: .8rem;
+    opacity: .65;
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* ---------------- 書式ツールバー ---------------- */
+#tools {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+#tools button {
+    padding: 4px 10px;
+    border-width: 1px;
+    font-size: .85rem;
+}
+
+/* ---------------- プレビュー(公開ページの article.css と同じ見た目) ---------------- */
+#preview {
+    overflow: auto;
+    padding: 16px;
+    background: #ddd;
+}
+
+.card {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+    background: #fff;
+    color: #222;
+}
+
+#p_title {
+    margin: 0 0 12px;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: left;
+}
+
+#p_date {
+    margin: 0 0 40px;
+    font-size: 14px;
+    color: #888;
+}
+
+#p_text {
+    font-size: 17px;
+    line-height: 2;
+}
+
+#p_text p {
+    margin: 0 0 1.6em;
+}
+
+#p_text a {
+    color: #1a7f6b;
+    text-decoration: underline;
+}
+
+#p_text h2 {
+    margin: 2.6em 0 1em;
+    font-size: 24px;
+    line-height: 1.5;
+}
+
+#p_text h3 {
+    margin: 2em 0 .8em;
+    font-size: 20px;
+    line-height: 1.5;
+}
+
+#p_text ul,
+#p_text ol {
+    margin: 0 0 1.6em;
+    padding-left: 1.6em;
+}
+
+#p_text blockquote {
+    margin: 1.8em 0;
+    padding: .2em 0 .2em 1.2em;
+    border-left: 3px solid #ccc;
+    color: #666;
+}
+
+#p_text hr {
+    width: 60px;
+    margin: 3em auto;
+    border: 0;
+    border-top: 2px solid #ccc;
+}
+
+#p_text figure {
+    margin: 2em 0;
+    text-align: center;
+}
+
+#p_text figure img {
+    max-width: 100%;
+    border-radius: 4px;
+}
+
+#p_text figcaption {
+    margin-top: .6em;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #888;
+}
+
+/* ---------------- 独自タグ ---------------- */
+red {
+    color: #e0245e;
+}
+
+bold {
+    font-weight: 700;
+}
+
+big-font {
+    font-size: 200%;
+    line-height: 1.4;
+}
