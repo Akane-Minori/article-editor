@@ -6,7 +6,7 @@ import { readDir, readFile, readTextFile, writeFile, writeTextFile, mkdir, remov
 import { join } from '@tauri-apps/api/path';
 
 type Article = {
-    id: string; date: string; title: string; body: string;
+    id: string; date: string; title: string; body: string; desc: string;
     thumb: string; legacy: boolean; legacyThumb?: string;
 };
 
@@ -15,6 +15,10 @@ let root = '', art = '';
 let articles: Article[] = [];
 let cur: Article | null = null;
 const urls = new Map<string, string>();
+
+const SITE = 'https://www.creative-staff.com';
+const SITE_NAME = 'CreativeStaff';
+const TW_ACCOUNT = '@creative_staff';
 
 const ImgRe = /!\[[^\]]*\]\(([^)\s]+)\)/g;
 const Images = (md: string) => [...md.matchAll(ImgRe)].map(m => m[1]).filter(s => !/^(https?:|\/)/.test(s));
@@ -50,6 +54,15 @@ function RenderBody(md: string): HTMLElement
     return box;
 }
 
+// 説明文の自動生成: 本文の最初の約100文字(画像のキャプションは除く)
+function AutoDesc(md: string): string
+{
+    const box = RenderBody(md);
+    box.querySelectorAll('figure').forEach(f => f.remove());
+    box.querySelectorAll('br').forEach(b => b.replaceWith(' '));
+    return (box.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+
 // 記事1本分のHTMLを作る(本文は表示用HTMLと、編集用のmdの両方を入れる)
 function BuildHtml(a: Article): string
 {
@@ -58,6 +71,24 @@ function BuildHtml(a: Article): string
     // アイキャッチは、選んだサムネイル(自動なら最初の画像)。記事と同じフォルダの画像を指す
     const eye = a.thumb || Images(a.body)[0] || '';
     const eyeHtml = eye ? `<img class="eyecatch" src="${Esc(eye)}" alt="">` : '';
+
+    // meta / OGP
+    const desc = a.desc.trim() || AutoDesc(a.body);
+    const url = `${SITE}/articles/${a.id}/article.html`;
+    const img = eye ? `${SITE}/articles/${a.id}/${eye}` : '';
+    const metaHtml = `<!-- OGP -->
+<meta name="description" content="${Esc(desc)}" />
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="${SITE_NAME}" />
+<meta property="og:locale" content="ja_JP" />
+<meta property="og:title" content="${Esc(a.title)} | ${SITE_NAME}" />
+<meta property="og:description" content="${Esc(desc)}" />
+<meta property="og:url" content="${url}" />
+${img ? `<meta property="og:image" content="${Esc(img)}" />\n` : ''}<meta name="twitter:card" content="${img ? 'summary_large_image' : 'summary'}" />
+<meta name="twitter:site" content="${TW_ACCOUNT}" />
+<meta property="article:published_time" content="${a.date}" />
+<link rel="canonical" href="${url}" />`;
+
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -71,6 +102,7 @@ function BuildHtml(a: Article): string
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"><\/script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"><\/script>
+${metaHtml}
 </head>
 <body>
 <div id="header"></div>
@@ -116,7 +148,7 @@ async function LoadFolder(path: string, remember = true): Promise<boolean>
             for (const j of json)
             {
                 const a: Article = {
-                    id: j.id, date: j.date || '', title: j.title || '', body: '',
+                    id: j.id, date: j.date || '', title: j.title || '', body: '', desc: '',
                     thumb: '', legacy: false, legacyThumb: j.thumbnail || ''
                 };
                 try
@@ -126,6 +158,9 @@ async function LoadFolder(path: string, remember = true): Promise<boolean>
                     const src = doc.getElementById('source-md');
                     if (src) a.body = (src.textContent ?? '').replace(/<\\\//g, '</');
                     else a.legacy = true;
+                    // 説明文を復元(自動生成と同じ内容なら「空=自動」に戻す)
+                    const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content') ?? '';
+                    a.desc = metaDesc && metaDesc !== AutoDesc(a.body) ? metaDesc : '';
                 }
                 catch { a.legacy = true; }  // 変換前の記事(フォルダ形式など)
                 const first = Images(a.body)[0] || '';
@@ -204,8 +239,10 @@ function Select(a: Article)
     $('#form').disabled = false;
     $('#date').value = a.date;
     $('#title').value = a.title;
+    $('#desc').value = a.desc;
     $('#body').value = a.body;
     RenderThumbs();
+    RenderDescHint();
     RenderList(); Preview();
 }
 
@@ -219,6 +256,12 @@ function RenderThumbs()
     sel.value = cur.thumb;
 }
 
+// 説明文が空のとき、自動生成される内容を薄い文字で見せる
+function RenderDescHint()
+{
+    $('#desc').placeholder = cur ? AutoDesc(cur.body) : '';
+}
+
 $('#new').onclick = () =>
 {
     const d = new Date();
@@ -226,7 +269,7 @@ $('#new').onclick = () =>
     const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
     // id は記事フォルダ名。作ったあとは変えない
     const id = date.replace(/-/g, '') + '_' + Math.random().toString(36).slice(2, 6);
-    const a: Article = { id, date, title: '', body: '', thumb: '', legacy: false };
+    const a: Article = { id, date, title: '', body: '', desc: '', thumb: '', legacy: false };
     articles.push(a);
     Dirty();
     Select(a);
@@ -252,7 +295,8 @@ $('#del').onclick = async () =>
 $('#date').oninput  = (e: any) => { if (!cur) return; cur.date  = e.target.value; Dirty(); RenderList(); Preview(); };
 $('#title').oninput = (e: any) => { if (!cur) return; cur.title = e.target.value; Dirty(); RenderList(); Preview(); };
 $('#thumb').onchange = (e: any) => { if (!cur) return; cur.thumb = e.target.value; Dirty(); };
-$('#body').oninput  = (e: any) => { if (!cur) return; cur.body  = e.target.value; Dirty(); RenderThumbs(); Preview(); };
+$('#desc').oninput  = (e: any) => { if (!cur) return; cur.desc  = e.target.value; Dirty(); };
+$('#body').oninput  = (e: any) => { if (!cur) return; cur.body  = e.target.value; Dirty(); RenderThumbs(); RenderDescHint(); Preview(); };
 
 // ---------------------------------------------------------------- 書式ツールバー
 // 選択範囲を前後の文字で囲む(選択がなければ仮の文字を入れて選択状態にする)
