@@ -6,7 +6,7 @@ import { readDir, readFile, readTextFile, writeFile, writeTextFile, mkdir, remov
 import { join } from '@tauri-apps/api/path';
 
 type Article = {
-    id: string; date: string; title: string; body: string; desc: string;
+    id: string; date: string; title: string; author: string; body: string; desc: string;
     thumb: string; legacy: boolean; legacyThumb?: string;
 };
 
@@ -14,6 +14,7 @@ const $ = (s: string) => document.querySelector(s) as any;
 let root = '', art = '';
 let articles: Article[] = [];
 let cur: Article | null = null;
+let mode: 'art' | 'hist' = 'art';
 const urls = new Map<string, string>();
 
 const SITE = 'https://www.creative-staff.com';
@@ -93,6 +94,7 @@ ${img ? `<meta property="og:image" content="${Esc(img)}" />\n` : ''}<meta name="
 <html>
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${Esc(a.title)}</title>
 <link rel="icon" href="../../cgls/favicon.ico" />
 <link rel="stylesheet" href="../article.css">
@@ -111,7 +113,7 @@ ${metaHtml}
     <article class="Article">
         ${eyeHtml}
         <h1>${Esc(a.title)}</h1>
-        <p class="date">${y}年${m}月${d}日</p>
+        <p class="date">${y}年${m}月${d}日${a.author ? ` / 執筆: <a href="../list.html?author=${Esc(encodeURIComponent(a.author))}">${Esc(a.author)}</a>` : ''}</p>
 
         <div class="Honbun">
 ${RenderBody(a.body).innerHTML}
@@ -148,7 +150,7 @@ async function LoadFolder(path: string, remember = true): Promise<boolean>
             for (const j of json)
             {
                 const a: Article = {
-                    id: j.id, date: j.date || '', title: j.title || '', body: '', desc: '',
+                    id: j.id, date: j.date || '', title: j.title || '', author: j.author || '', body: '', desc: '',
                     thumb: '', legacy: false, legacyThumb: j.thumbnail || ''
                 };
                 try
@@ -175,8 +177,10 @@ async function LoadFolder(path: string, remember = true): Promise<boolean>
     root = path; art = artDir; articles = list; cur = null;
     if (remember) localStorage.setItem('root', path);
     $('#new').disabled = $('#save').disabled = false;
+    $('#open').hidden = true;  // フォルダを選んだら、選ぶボタンは消す
     $('#form').disabled = true;
-    RenderList(); Preview();
+    RenderList(); Preview(); RenderAuthors();
+    await HLoad();
     Status(`${articles.length} 件の記事を読み込みました (${path})`);
     return true;
 }
@@ -190,6 +194,7 @@ $('#open').onclick = async () =>
 async function Save()
 {
     if (!root) return;
+    if (mode === 'hist') { await HSave(); return; }
     try
     {
         await EnsureDir();
@@ -200,7 +205,7 @@ async function Save()
             await writeTextFile(await join(art, a.id, 'article.html'), BuildHtml(a));
         }
         const json = Sorted().map(a => ({
-            id: a.id, date: a.date, title: a.title,
+            id: a.id, date: a.date, title: a.title, ...(a.author ? { author: a.author } : {}),
             thumbnail: a.legacy ? (a.legacyThumb ?? '') : Thumb(a)
         }));
         await writeTextFile(await join(art, 'articles.json'), JSON.stringify(json, null, 2));
@@ -212,6 +217,13 @@ $('#save').onclick = Save;
 window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); Save(); } });
 
 // ---------------------------------------------------------------- 記事一覧
+// 作者の入力候補(これまでに使った作者名)
+function RenderAuthors()
+{
+    const names = [...new Set(articles.map(a => a.author).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'ja'));
+    $('#authors').replaceChildren(...names.map(n => { const o = document.createElement('option'); o.value = n; return o; }));
+}
+
 function RenderList()
 {
     $('#list').replaceChildren(...Sorted().map(a =>
@@ -219,7 +231,7 @@ function RenderList()
         const b = document.createElement('button');
         b.className = 'item' + (a === cur ? ' now' : '');
         b.innerHTML = '<small></small><span></span>';
-        b.children[0].textContent = a.date;
+        b.children[0].textContent = a.date + (a.author ? '  ' + a.author : '');
         b.children[1].textContent = (a.title || '(無題)') + (a.legacy ? ' [変換前]' : '');
         b.onclick = () => Select(a);
         return b;
@@ -239,6 +251,7 @@ function Select(a: Article)
     $('#form').disabled = false;
     $('#date').value = a.date;
     $('#title').value = a.title;
+    $('#author').value = a.author;
     $('#desc').value = a.desc;
     $('#body').value = a.body;
     RenderThumbs();
@@ -269,7 +282,8 @@ $('#new').onclick = () =>
     const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
     // id は記事フォルダ名。作ったあとは変えない
     const id = date.replace(/-/g, '') + '_' + Math.random().toString(36).slice(2, 6);
-    const a: Article = { id, date, title: '', body: '', desc: '', thumb: '', legacy: false };
+    let last = ''; try { last = localStorage.getItem('cs-last-author') ?? ''; } catch { }  // 前回の作者を初期値にする
+    const a: Article = { id, date, title: '', author: last, body: '', desc: '', thumb: '', legacy: false };
     articles.push(a);
     Dirty();
     Select(a);
@@ -295,6 +309,13 @@ $('#del').onclick = async () =>
 $('#date').oninput  = (e: any) => { if (!cur) return; cur.date  = e.target.value; Dirty(); RenderList(); Preview(); };
 $('#title').oninput = (e: any) => { if (!cur) return; cur.title = e.target.value; Dirty(); RenderList(); Preview(); };
 $('#thumb').onchange = (e: any) => { if (!cur) return; cur.thumb = e.target.value; Dirty(); };
+$('#author').oninput = (e: any) =>
+{
+    if (!cur) return;
+    cur.author = e.target.value.trim();
+    try { localStorage.setItem('cs-last-author', cur.author); } catch { }
+    Dirty(); RenderList(); Preview(); RenderAuthors();
+};
 $('#desc').oninput  = (e: any) => { if (!cur) return; cur.desc  = e.target.value; Dirty(); };
 $('#body').oninput  = (e: any) => { if (!cur) return; cur.body  = e.target.value; Dirty(); RenderThumbs(); RenderDescHint(); Preview(); };
 
@@ -354,7 +375,7 @@ $('#tools').addEventListener('click', (e: Event) =>
 function Preview()
 {
     const a = cur && !cur.legacy ? cur : null;
-    $('#p_date').textContent = a?.date ?? '';
+    $('#p_date').textContent = a ? a.date + (a.author ? ` / 執筆: ${a.author}` : '') : '';
     $('#p_title').textContent = a?.title ?? '';
     const box = RenderBody(a?.body ?? '');
     $('#p_text').replaceChildren(...box.childNodes);
@@ -443,6 +464,154 @@ $('#body').addEventListener('paste', (e: ClipboardEvent) =>
     const files = [...(e.clipboardData?.files ?? [])];
     if (files.length) { e.preventDefault(); AddImages(files); }
 });
+
+
+// ---------------------------------------------------------------- 年表 (about/history/history.json)
+type Hist = { date: string; text: string };
+let hist: Hist[] = [];
+let hcur: Hist | null = null;
+const HDate = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+const HSorted = () => hist.slice().sort((a, b) => a.date.localeCompare(b.date));
+
+// 2022-04-06 → 2022年4月6日 / 2022-04 → 2022年4月 / 2022 → 2022年
+function HLabel(d: string): string
+{
+    const [y, m, day] = d.split('-');
+    return `${y}年` + (m ? `${Number(m)}月` : '') + (day ? `${Number(day)}日` : '');
+}
+
+// 本文: 改行はそのまま、[文字](https://…) はリンクにする
+function HText(s: string): string
+{
+    return Esc(s)
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+        .replace(/\n/g, '<br>');
+}
+
+// 年表を描く(公開ページの about/history.js と同じ見た目)
+function HRender(list: Hist[], box: HTMLElement)
+{
+    if (list.length === 0) { box.innerHTML = '<p class="tl-empty">まだ項目がありません</p>'; return; }
+    let html = '', year = '', n = 0;
+    for (const e of list)
+    {
+        const y = e.date.slice(0, 4);
+        if (y !== year) { year = y; n = 0; html += `<div class="tl-year"><span>${Esc(y)}</span></div>`; }
+        html += `<div class="tl-item ${n++ % 2 === 0 ? 'l' : 'r'}"><div class="tl-card">` +
+                `<span class="tl-date">${Esc(HDate.test(e.date) ? HLabel(e.date) : e.date)}</span>${HText(e.text)}</div></div>`;
+    }
+    box.innerHTML = html;
+}
+
+async function HLoad()
+{
+    hist = []; hcur = null;
+    try
+    {
+        const path = await join(root, 'about', 'history', 'history.json');
+        if (await exists(path)) hist = JSON.parse(await readTextFile(path));
+    }
+    catch (e) { await message('about/history/history.json を読めませんでした: ' + e, { kind: 'error' }); }
+    $('#hform').disabled = true;
+    HList(); HPreview();
+}
+
+async function HSave()
+{
+    const bad = hist.find(h => !HDate.test(h.date) || !h.text.trim());
+    if (bad)
+    {
+        await message('日付の形式が違う項目、または内容が空の項目があります。\n日付は 2022-04-06 / 2022-04 / 2022 のどれかで入れてください。', { kind: 'warning' });
+        return;
+    }
+    try
+    {
+        await mkdir(await join(root, 'about', 'history'), { recursive: true });
+        await writeTextFile(await join(root, 'about', 'history', 'history.json'), JSON.stringify(HSorted(), null, 2));
+        Status('年表を保存しました');
+    }
+    catch (e) { await message('年表を保存できませんでした: ' + e, { kind: 'error' }); }
+}
+
+function HList()
+{
+    $('#hlist').replaceChildren(...HSorted().map(h =>
+    {
+        const b = document.createElement('button');
+        b.className = 'item' + (h === hcur ? ' now' : '');
+        b.innerHTML = '<small></small><span></span>';
+        b.children[0].textContent = HDate.test(h.date) ? HLabel(h.date) : (h.date || '(日付なし)');
+        b.children[1].textContent = h.text.split('\n')[0] || '(内容なし)';
+        b.onclick = () => HSelect(h);
+        return b;
+    }));
+}
+
+function HPreview() { HRender(HSorted(), $('#hp')); }
+
+function HSelect(h: Hist)
+{
+    hcur = h;
+    $('#hform').disabled = false;
+    $('#hdate').value = h.date;
+    $('#htext').value = h.text;
+    HList();
+}
+
+function HNew()
+{
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    const h: Hist = { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, text: '' };
+    hist.push(h);
+    Dirty();
+    HSelect(h); HPreview();
+    $('#htext').focus();
+}
+
+$('#hdate').oninput = (e: any) => { if (!hcur) return; hcur.date = e.target.value.trim(); Dirty(); HList(); HPreview(); };
+$('#htext').oninput = (e: any) => { if (!hcur) return; hcur.text = e.target.value; Dirty(); HList(); HPreview(); };
+
+$('#hdel').onclick = async () =>
+{
+    if (!hcur || !(await ask('この項目を削除します。', { kind: 'warning' }))) return;
+    hist = hist.filter(h => h !== hcur);
+    hcur = null;
+    $('#hform').disabled = true;
+    $('#hdate').value = $('#htext').value = '';
+    HList(); HPreview();
+    Dirty();
+};
+
+// 選択範囲を [文字](https://) にする
+$('#hlink').onclick = () =>
+{
+    const t = $('#htext');
+    if (!hcur) return;
+    const s = t.selectionStart;
+    const sel = t.value.slice(s, t.selectionEnd) || 'リンク文字';
+    t.setRangeText(`[${sel}](https://)`, s, t.selectionEnd, 'end');
+    t.focus();
+    t.dispatchEvent(new Event('input'));
+};
+
+// 「新しい記事」ボタンは、年表タブでは「新しい項目」として働く
+const ArtNew = $('#new').onclick;
+$('#new').onclick = (e: any) => (mode === 'hist' ? HNew() : ArtNew(e));
+
+// タブの切り替え(記事 / 年表)
+function SetMode(m: 'art' | 'hist')
+{
+    mode = m;
+    const art = m === 'art';
+    for (const id of ['#list', '#form', '#preview']) $(id).hidden = !art;
+    for (const id of ['#hlist', '#hform', '#hpreview']) $(id).hidden = art;
+    $('#tab-art').classList.toggle('main', art);
+    $('#tab-hist').classList.toggle('main', !art);
+    $('#new').textContent = art ? '新しい記事' : '新しい項目';
+}
+$('#tab-art').onclick = () => SetMode('art');
+$('#tab-hist').onclick = () => SetMode('hist');
 
 // ---------------------------------------------------------------- 起動
 Preview();

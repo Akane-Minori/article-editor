@@ -7,10 +7,18 @@
 </head>
 <body>
     <header>
-        <button id="open">サイトのフォルダを選ぶ</button>
-        <button id="new" disabled>新しい記事</button>
-        <button id="save" class="main" disabled>保存 (Ctrl+S)</button>
-        <span id="status">最初に、サイトのフォルダ(index.html がある場所)を選んでください</span>
+        <div class="grp"><div class="seg">
+            <button id="tab-art" class="main" type="button">記事</button>
+            <button id="tab-hist" type="button">年表</button>
+        </div></div>
+        <div class="grp">
+            <button id="open">サイトのフォルダを選ぶ</button>
+            <button id="new" disabled>新しい記事</button>
+        </div>
+        <span id="status">最初にサイトのフォルダを選んでください</span>
+        <div class="grp">
+            <button id="save" class="main" disabled>保存 (Ctrl+S)</button>
+        </div>
     </header>
 
     <nav id="list"></nav>
@@ -18,6 +26,8 @@
     <fieldset id="form" disabled>
         <label>日付<input type="date" id="date"></label>
         <label>タイトル<input type="text" id="title"></label>
+        <label>作者<input type="text" id="author" list="authors" autocomplete="off" placeholder="名前を入力(過去の作者が候補に出ます)"></label>
+        <datalist id="authors"></datalist>
         <label>サムネイル
             <select id="thumb"><option value="">自動(最初の画像)</option></select>
         </label>
@@ -54,6 +64,29 @@
         </div>
     </section>
 
+    <!-- ===== 年表(about/history.json) ===== -->
+    <nav id="hlist" hidden></nav>
+
+    <fieldset id="hform" disabled hidden>
+        <label>日付(2022-04-06 / 2022-04 / 2022 のどれか)
+            <input type="text" id="hdate" placeholder="2022-04-06">
+        </label>
+        <div id="htools">
+            <button type="button" id="hlink">リンク</button>
+        </div>
+        <label>内容<textarea id="htext" rows="8"></textarea></label>
+        <div class="row">
+            <button id="hdel" type="button">この項目を削除</button>
+        </div>
+        <p class="hint">日付の細かさは自由です(年だけ・年月だけでもOK)。<br>
+            <code>[文字](https://…)</code> と書くと、年表の中でリンクになります。</p>
+    </fieldset>
+
+    <section id="hpreview" hidden>
+        <div class="hwrap"><div id="hp" class="tl"></div></div>
+    </section>
+
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
+
