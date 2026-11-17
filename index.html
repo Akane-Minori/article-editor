@@ -3,90 +3,196 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>記事エディター</title>
+    <title>サイトエディター</title>
 </head>
 <body>
-    <header>
-        <div class="grp"><div class="seg">
-            <button id="tab-art" class="main" type="button">記事</button>
-            <button id="tab-hist" type="button">年表</button>
-        </div></div>
-        <div class="grp">
-            <button id="open">サイトのフォルダを選ぶ</button>
-            <button id="new" disabled>新しい記事</button>
-        </div>
-        <span id="status">最初にサイトのフォルダを選んでください</span>
-        <div class="grp">
-            <button id="save" class="main" disabled>保存 (Ctrl+S)</button>
+    <header class="header">
+        <div class="header__inner">
+            <div class="seg">
+                <button id="tab-art" class="main" type="button">記事</button>
+                <button id="tab-site" type="button">サイト設定</button>
+            </div>
+            <span id="status">最初にサイトのフォルダを選んでください</span>
+            <button id="open" class="btn" type="button">サイトのフォルダを選ぶ</button>
+            <button id="save" class="btn btn--primary" type="button" disabled>保存 (Ctrl+S)</button>
         </div>
     </header>
 
-    <nav id="list"></nav>
+    <main id="main">
+        <!-- ================= 記事(一覧 → 編集+プレビュー) ================= -->
+        <section id="w-art">
+            <div id="v-list">
+                <div class="toolbar">
+                    <h2>記事</h2>
+                    <button id="new" class="btn btn--primary newbtn" type="button" disabled>新しい記事</button>
+                </div>
+                <nav id="list" class="list"></nav>
+                <nav id="pager" class="pager" aria-label="ページ送り" hidden></nav>
+            </div>
 
-    <fieldset id="form" disabled>
-        <label>日付<input type="date" id="date"></label>
-        <label>タイトル<input type="text" id="title"></label>
-        <label>作者<input type="text" id="author" list="authors" autocomplete="off" placeholder="名前を入力(過去の作者が候補に出ます)"></label>
-        <datalist id="authors"></datalist>
-        <label>サムネイル
-            <select id="thumb"><option value="">自動(最初の画像)</option></select>
-        </label>
-        <label>説明文(空なら本文から自動)
-            <textarea id="desc" rows="3"></textarea>
-        </label>
+            <div id="v-edit" hidden>
+                <div class="edit-bar">
+                    <button id="back" class="btn" type="button">← 一覧に戻る</button>
+                </div>
+                <div class="edit-grid">
+                    <fieldset id="form" class="pane form" disabled>
+                        <label>日付<input type="date" id="date"></label>
+                        <label>タイトル<input type="text" id="title"></label>
+                        <label>作者<input type="text" id="author" list="authors" autocomplete="off" placeholder="名前を入力(過去の作者が候補に出ます)"></label>
+                        <datalist id="authors"></datalist>
+                        <label>サムネイル
+                            <select id="thumb"><option value="">自動(最初の画像)</option></select>
+                        </label>
+                        <label>説明文(空なら本文から自動)
+                            <textarea id="desc" rows="3"></textarea>
+                        </label>
 
-        <div id="tools">
-            <button type="button" data-f="h">見出し</button>
-            <button type="button" data-f="b">太字</button>
-            <button type="button" data-f="red">赤字</button>
-            <button type="button" data-f="big">大きい文字</button>
-            <button type="button" data-f="ul">リスト</button>
-            <button type="button" data-f="q">引用</button>
-            <button type="button" data-f="hr">区切り線</button>
-            <button type="button" data-f="a">リンク</button>
-        </div>
+                        <div id="tools" class="tools">
+                            <button type="button" class="btn btn--sm" data-f="h">見出し</button>
+                            <button type="button" class="btn btn--sm" data-f="b">太字</button>
+                            <button type="button" class="btn btn--sm" data-f="red">赤字</button>
+                            <button type="button" class="btn btn--sm" data-f="big">大きい文字</button>
+                            <button type="button" class="btn btn--sm" data-f="ul">リスト</button>
+                            <button type="button" class="btn btn--sm" data-f="q">引用</button>
+                            <button type="button" class="btn btn--sm" data-f="hr">区切り線</button>
+                            <button type="button" class="btn btn--sm" data-f="a">リンク</button>
+                            <button type="button" class="btn btn--sm" data-f="embed">埋め込み</button>
+                            <button type="button" class="btn btn--sm" data-f="toc">目次</button>
+                        </div>
 
-        <label>本文(マークダウン)<textarea id="body"></textarea></label>
-        <div class="row">
-            <button id="addimg" type="button">画像を挿入</button>
-            <button id="del" type="button">この記事を削除</button>
-            <input type="file" id="file" accept="image/*" multiple hidden>
-        </div>
-        <p class="hint">画像は貼り付け・ドラッグ&amp;ドロップでも入れられます。前後を空行で区切ってください。<br>
-            <code>![ここ](…)</code> の文字が画像の下のキャプションになります(空なら出ません)。</p>
-    </fieldset>
+                        <label>本文(マークダウン)<textarea id="body"></textarea></label>
+                        <div class="row">
+                            <button id="addimg" class="btn" type="button">画像を挿入</button>
+                            <button id="del" class="btn btn--danger" type="button">この記事を削除</button>
+                            <input type="file" id="file" accept="image/*" multiple hidden>
+                        </div>
+                    </fieldset>
 
-    <section id="preview">
-        <div class="card">
-            <h1 id="p_title"></h1>
-            <p id="p_date"></p>
-            <div id="p_text"></div>
-        </div>
-    </section>
+                    <section id="preview" class="pane preview">
+                        <div class="card">
+                            <h1 id="p_title"></h1>
+                            <p id="p_date"></p>
+                            <div id="p_text"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
 
-    <!-- ===== 年表(about/history.json) ===== -->
-    <nav id="hlist" hidden></nav>
+        <!-- ================= サイト設定(1画面: 一覧 → 入力 → プレビューを縦に積む) ================= -->
+        <section id="w-site" hidden>
+            <div class="seg seg--light subtabs">
+                <button id="tab-hist" class="main" type="button">年表</button>
+                <button id="tab-evt" type="button">行事</button>
+                <button id="tab-road" type="button">ロードマップ</button>
+                <button id="tab-spon" type="button">協賛・提携</button>
+            </div>
 
-    <fieldset id="hform" disabled hidden>
-        <label>日付(2022-04-06 / 2022-04 / 2022 のどれか)
-            <input type="text" id="hdate" placeholder="2022-04-06">
-        </label>
-        <div id="htools">
-            <button type="button" id="hlink">リンク</button>
-        </div>
-        <label>内容<textarea id="htext" rows="8"></textarea></label>
-        <div class="row">
-            <button id="hdel" type="button">この項目を削除</button>
-        </div>
-        <p class="hint">日付の細かさは自由です(年だけ・年月だけでもOK)。<br>
-            <code>[文字](https://…)</code> と書くと、年表の中でリンクになります。</p>
-    </fieldset>
+            <!-- 年表 (about/history/history.json) -->
+            <div id="p-hist" class="site-pane">
+                <div class="site-left">
+                <div class="toolbar">
+                    <h2>年表</h2>
+                    <button id="hnew" class="btn btn--primary newbtn" type="button" disabled>新しい項目</button>
+                </div>
+                <nav id="hlist" class="list list--compact"></nav>
+                <fieldset id="hform" class="pane form" disabled>
+                    <label>日付(2022-04-06 / 2022-04 / 2022 のどれか)
+                        <input type="text" id="hdate" placeholder="2022-04-06">
+                    </label>
+                    <div class="tools">
+                        <button type="button" class="btn btn--sm" id="hlink">リンク</button>
+                    </div>
+                    <label>内容<textarea id="htext" rows="6"></textarea></label>
+                    <div class="row">
+                        <button id="hdel" class="btn btn--danger" type="button">この項目を削除</button>
+                    </div>
+                </fieldset>
+                </div>
+                <section id="hpreview" class="pane preview">
+                    <div class="hwrap"><div id="hp" class="tl"></div></div>
+                </section>
+            </div>
 
-    <section id="hpreview" hidden>
-        <div class="hwrap"><div id="hp" class="tl"></div></div>
-    </section>
+            <!-- 行事 (about/events.json) -->
+            <div id="p-evt" class="site-pane" hidden>
+                <div class="site-left">
+                <div class="toolbar">
+                    <h2>行事</h2>
+                    <button id="enew" class="btn btn--primary newbtn" type="button" disabled>新しい項目</button>
+                </div>
+                <nav id="elist" class="list list--compact"></nav>
+                <fieldset id="eform" class="pane form" disabled>
+                    <label>タイトル<input type="text" id="etitle"></label>
+                    <div class="tools">
+                        <button type="button" class="btn btn--sm" id="elink">リンク</button>
+                    </div>
+                    <label>本文(改行できます)<textarea id="etext" rows="5"></textarea></label>
+                    <div class="row">
+                        <button id="eup" class="btn" type="button">↑ 上へ</button>
+                        <button id="edown" class="btn" type="button">↓ 下へ</button>
+                        <button id="edel" class="btn btn--danger" type="button">この項目を削除</button>
+                    </div>
+                </fieldset>
+                </div>
+                <section id="epreview" class="pane preview">
+                    <ul id="ep" class="ev-list"></ul>
+                </section>
+            </div>
 
-    <script type="module" src="/src/main.ts"></script>
+            <!-- ロードマップ (about/roadmap.json) -->
+            <div id="p-road" class="site-pane" hidden>
+                <div class="site-left">
+                <div class="toolbar">
+                    <h2>ロードマップ</h2>
+                    <button id="rnew" class="btn btn--primary newbtn" type="button" disabled>新しい項目</button>
+                </div>
+                <nav id="rlist" class="list list--compact"></nav>
+                <fieldset id="rform" class="pane form" disabled>
+                    <label>月<select id="rmonth"></select></label>
+                    <label>内容<textarea id="rtext" rows="3"></textarea></label>
+                    <div class="row">
+                        <button id="rdel" class="btn btn--danger" type="button">この項目を削除</button>
+                    </div>
+                </fieldset>
+                </div>
+                <section id="rpreview" class="pane preview">
+                    <div class="rm-wrap"><div id="rp" class="rm"></div></div>
+                </section>
+            </div>
+
+            <!-- 協賛・提携 (about/sponsors.json) -->
+            <div id="p-spon" class="site-pane" hidden>
+                <div class="site-left">
+                <div class="toolbar">
+                    <h2>協賛・提携</h2>
+                    <button id="snew" class="btn btn--primary newbtn" type="button" disabled>新しい項目</button>
+                </div>
+                <nav id="slist" class="list list--compact"></nav>
+                <fieldset id="sform" class="pane form" disabled>
+                    <label>名前<input type="text" id="sname"></label>
+                    <label>一言説明(空でもOK)<textarea id="sdesc" rows="3"></textarea></label>
+                    <label>リンク先URL(空でもOK)<input type="text" id="surl" placeholder="https://"></label>
+                    <div class="row">
+                        <button id="slogo" class="btn" type="button">ロゴを選ぶ</button>
+                        <button id="slogo-del" class="btn" type="button">ロゴを外す</button>
+                        <span id="slogo-name" class="hint"></span>
+                        <input type="file" id="sfile" accept="image/*" hidden>
+                    </div>
+                    <div class="row">
+                        <button id="sup" class="btn" type="button">↑ 上へ</button>
+                        <button id="sdown" class="btn" type="button">↓ 下へ</button>
+                        <button id="sdel" class="btn btn--danger" type="button">この項目を削除</button>
+                    </div>
+                </fieldset>
+                </div>
+                <section id="spreview" class="pane preview">
+                    <div id="sp"></div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/src/editor.ts"></script>
 </body>
 </html>
-
