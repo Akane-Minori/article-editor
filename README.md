@@ -1,7 +1,32 @@
-# Tauri + Vanilla TS
+# 概要
+　[クリエイティブスタッフ](https://www.creative-staff.com/)のウェブサイト（主に記事）を編集するためのツールです  
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+- 記事編集
+- サイト設定
+  - 年表
+  - イベント
+  - 年間ロードマップ
+  - 協賛・提携
 
-## Recommended IDE Setup
+を編集できます  
+　利用するには[クリエイティブスタッフのプロジェクト](https://github.com/Creative-Staff/creative-staff.github.io)が必要です
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+# 使い方
+
+## 記事編集画面
+
+![](img/1.png)
+
+![](img/2.png)
+
+
+## サイト設定画面
+
+![](img/3.png)
+
+![](img/4.png)
+
+![](img/5.png)
+
+![](img/6.png)
