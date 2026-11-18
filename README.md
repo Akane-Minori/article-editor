@@ -20,21 +20,38 @@
 　出力に関しては後述します  
 　編集する場合は一覧に表示された記事をクリック
 
-![](img/1.png)
+<p align="center">
+  <img src="img/1.png" width="400">
+</p> 
 
 　記事はマークダウン形式で記述します  
 　一部はボタンによって追加できます（使わなくても追加は可能）  
 　書き出しによって記事をzip形式で出力できます
 
-![](img/2.png)
-
+<p align="center">
+  <img src="img/2.png" width="400">
+</p> 
 
 ## サイト設定画面
+### サークル年表
+<p align="center">
+  <img src="img/3.png" width="400">
+</p> 
 
-![](img/3.png)
+### イベント
 
-![](img/4.png)
+<p align="center">
+  <img src="img/4.png" width="400">
+</p> 
 
-![](img/5.png)
+### 年間ロードマップ
 
-![](img/6.png)
+<p align="center">
+  <img src="img/5.png" width="400">
+</p> 
+
+### 協賛・提携
+
+<p align="center">
+  <img src="img/6.png" width="400">
+</p> 
