@@ -24,7 +24,11 @@
             <div id="v-list">
                 <div class="toolbar">
                     <h2>記事</h2>
-                    <button id="new" class="btn btn--primary newbtn" type="button" disabled>新しい記事</button>
+                    <span class="row">
+                        <button id="import" class="btn" type="button">取り込み</button>
+                        <input type="file" id="zipfile" accept=".zip" hidden>
+                        <button id="new" class="btn btn--primary newbtn" type="button" disabled>新しい記事</button>
+                    </span>
                 </div>
                 <nav id="list" class="list"></nav>
                 <nav id="pager" class="pager" aria-label="ページ送り" hidden></nav>
@@ -33,6 +37,7 @@
             <div id="v-edit" hidden>
                 <div class="edit-bar">
                     <button id="back" class="btn" type="button">← 一覧に戻る</button>
+                    <button id="export" class="btn" type="button">書き出し</button>
                 </div>
                 <div class="edit-grid">
                     <fieldset id="form" class="pane form" disabled>

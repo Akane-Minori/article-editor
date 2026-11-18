@@ -1,9 +1,10 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import { ask, message, save } from '@tauri-apps/plugin-dialog';
 import { readDir, readFile, readTextFile, writeFile, writeTextFile, mkdir, remove, exists } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
 import { $, S, urls, dirty, Esc, Status, Dirty, ToWebp } from './common';
+import { ZipBuild, ZipRead } from './zip';
 
 type Article = {
     id: string; date: string; title: string; author: string; body: string; desc: string;
@@ -769,3 +770,73 @@ $('#body').addEventListener('paste', (e: ClipboardEvent) =>
 
 $('#new').onclick = ArtNew;
 $('#back').onclick = () => ShowView('list');
+
+// ---------------------------------------------------------------- 記事の書き出し / 取り込み(ZIP)
+// 書き出し: 編集中の内容(未保存でも)と画像を、1つのZIPにする
+$('#export').onclick = async () =>
+{
+    if (!cur || cur.legacy) return;
+    const a = cur;
+    try
+    {
+        const meta = { date: a.date, title: a.title, author: a.author, desc: a.desc, thumb: a.thumb, body: a.body, cards: a.cards };
+        const files = [{ name: 'article.json', data: new TextEncoder().encode(JSON.stringify(meta, null, 2)) }];
+        const dir = await join(S.art, a.id);
+        if (await exists(dir))
+            for (const e of await readDir(dir))
+                if (e.isFile && /\.(webp|png|jpe?g|gif)$/i.test(e.name))
+                    files.push({ name: 'img/' + e.name, data: await readFile(await join(dir, e.name)) });
+        const path = await save({
+            defaultPath: `${a.date}_${a.title || 'article'}.zip`.replace(/[\\/:*?"<>|]/g, '_'),
+            filters: [{ name: '記事', extensions: ['zip'] }]
+        });
+        if (!path) return;
+        await writeFile(path, ZipBuild(files));
+        Status('記事を書き出しました');
+    }
+    catch (e) { await message('書き出せませんでした: ' + e, { kind: 'error' }); }
+};
+
+// 取り込み: 新しい記事として追加する。フォルダ名は、元の名前を使わず毎回つけ直す
+$('#import').onclick = () => $('#zipfile').click();
+$('#zipfile').onchange = async (e: any) =>
+{
+    const f: File | undefined = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!S.root) { await message('先にサイトのフォルダを選んでください'); return; }
+    try
+    {
+        const files = ZipRead(new Uint8Array(await f.arrayBuffer()));
+        const j = files.find(x => x.name === 'article.json');
+        if (!j) throw new Error('article.json がありません');
+        const m = JSON.parse(new TextDecoder().decode(j.data));
+
+        const p = (n: number) => String(n).padStart(2, '0');
+        const t = new Date();
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(m.date) ? m.date : `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
+        // 本文の日付からフォルダ名を作る(既存の記事と重ならないようにする)
+        let id: string;
+        do { id = date.replace(/-/g, '') + '_' + Math.random().toString(36).slice(2, 6); }
+        while (articles.some(a => a.id === id));
+
+        const dir = await join(S.art, id);
+        await mkdir(dir, { recursive: true });
+        for (const x of files)
+        {
+            const n = x.name.startsWith('img/') ? x.name.slice(4) : '';
+            if (!/^[\w.-]+\.(webp|png|jpe?g|gif)$/i.test(n)) continue;   // 画像以外・パス付きは無視
+            await writeFile(await join(dir, n), x.data);
+        }
+        const a: Article = {
+            id, date, title: m.title || '', author: m.author || '', body: m.body || '',
+            desc: m.desc || '', thumb: m.thumb || '', legacy: false, cards: m.cards || {}
+        };
+        articles.push(a);
+        artPage = 1;
+        Dirty();
+        Select(a);
+        Status('記事を取り込みました(保存を押すと記事が確定します)');
+    }
+    catch (err) { await message('取り込めませんでした: ' + err, { kind: 'error' }); }
+};
