@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 import { ask, message, save } from '@tauri-apps/plugin-dialog';
 import { readDir, readFile, readTextFile, writeFile, writeTextFile, mkdir, remove, exists } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
-import { $, S, urls, dirty, Esc, Status, Dirty, ToWebp } from './common';
+import { $, S, urls, dirty, memImgs, Esc, Status, Dirty, ToWebp } from './common';
 import { ZipBuild, ZipRead } from './zip';
 
 type Article = {
@@ -20,7 +20,8 @@ const SITE_NAME = 'CreativeStaff';
 const TW_ACCOUNT = '@creative_staff';
 
 const ImgRe = /!\[(?:\\.|[^\]\\])*\]\(([^)\s]+)\)/g;
-const Images = (md: string) => [...md.matchAll(ImgRe)].map(m => m[1]).filter(s => !/^(https?:|\/)/.test(s));
+// 画像の幅は、ファイル名のあとの #s(小) / #m(中) で指定する。大(指定なし)は全幅
+const Images = (md: string) => [...md.matchAll(ImgRe)].map(m => m[1].replace(/#[sml]$/, '')).filter(s => !/^(https?:|\/)/.test(s));
 const Thumb = (a: Article) => { const t = a.thumb || Images(a.body)[0] || ''; return t ? `${a.id}/${t}` : ''; };
 const Sorted = () => articles.slice().sort((a, b) => b.date.localeCompare(a.date));
 
@@ -29,6 +30,8 @@ export function ShowView(v: 'list' | 'edit')
 {
     $('#v-list').hidden = v !== 'list';
     $('#v-edit').hidden = v !== 'edit';
+    $('#back').hidden = !S.root;            // フォルダ未選択のときは、一覧がないので戻るボタンも出さない
+    $('#import-edit').hidden = !!S.root;    // 未選択のときだけ、編集画面にも取り込みボタンを出す
     window.scrollTo(0, 0);
 }
 
@@ -161,12 +164,21 @@ function RenderBody(md: string, cards: Record<string, Card> = {}): HTMLElement
     // marked は [ ] 内の改行を消してしまうので、先に \n(バックスラッシュとn)に置き換えておく
     md = md.replace(/!\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)/g, (_m, alt: string, src: string) => `![${alt.replace(/\s*\r?\n\s*/g, '\\n')}](${src})`);
     const html = marked.parse(md, { breaks: true, async: false }) as string;
-    box.innerHTML = DOMPurify.sanitize(html, { ADD_TAGS: ['red', 'bold', 'big-font'] });
+    box.innerHTML = DOMPurify.sanitize(html, { ADD_TAGS: ['red', 'bold', 'big-font', 'blue', 'small-font', 'align-center', 'align-right', 'box-point', 'box-warn'] });
+    // 画像の幅指定(#s / #m)を外して、あとで figure の class にする
+    box.querySelectorAll('img').forEach(im =>
+    {
+        const m = (im.getAttribute('src') ?? '').match(/^(.*)#([sml])$/);
+        if (m) { im.setAttribute('src', m[1]); (im as HTMLElement).dataset.w = m[2]; }
+    });
     box.querySelectorAll('p').forEach(p =>
     {
         const img = p.querySelector(':scope > img');
         if (!img || p.children.length !== 1 || (p.textContent ?? '').trim() !== '') return;
         const fig = document.createElement('figure');
+        const w = (img as HTMLElement).dataset.w;
+        if (w && w !== 'l') fig.classList.add('w-' + w);
+        delete (img as HTMLElement).dataset.w;
         fig.append(img);
         const alt = (img as HTMLImageElement).alt;
         if (alt)
@@ -309,10 +321,13 @@ async function EnsureDir()
 export const ArticleCount = () => articles.length;
 
 // 記事を読み込む。読めなければ false(フォルダの状態は変えない)
-export async function ALoad(path: string): Promise<boolean>
+// silent = true は起動時の自動読み込み用(前回のフォルダが無くても、警告を出さない)
+export async function ALoad(path: string, silent = false): Promise<boolean>
 {
     const artDir = await join(path, 'articles');
     const list: Article[] = [];
+    // フォルダ未選択で編集していた記事は、一覧に引き継ぐ
+    const keep = !S.root && cur && !cur.legacy && dirty.has('art') ? cur : null;
     try
     {
         const jsonPath = await join(artDir, 'articles.json');
@@ -345,9 +360,10 @@ export async function ALoad(path: string): Promise<boolean>
             }
         }
     }
-    catch (e) { await message('articles.json を読めませんでした: ' + e, { kind: 'error' }); return false; }
+    catch (e) { if (!silent) await message('articles.json を読めませんでした: ' + e, { kind: 'error' }); return false; }
 
 
+    if (keep) list.push(keep);
     S.root = path; S.art = artDir; articles = list; cur = null;
     $('#form').disabled = true;
     artPage = 1;
@@ -364,6 +380,13 @@ export async function ASave(): Promise<boolean>
         {
             if (a.legacy) continue;  // 変換前の記事はそのまま触らない
             await mkdir(await join(S.art, a.id), { recursive: true });
+            // メモリにあった画像(フォルダ未選択のときに入れたもの)は、ここでフォルダに書く
+            const mem = memImgs.get(a.id);
+            if (mem)
+            {
+                for (const [name, data] of mem) await writeFile(await join(S.art, a.id, name), data);
+                memImgs.delete(a.id);
+            }
             await writeTextFile(await join(S.art, a.id, 'article.html'), BuildHtml(a));
         }
         const json = Sorted().map(a => ({
@@ -461,8 +484,9 @@ async function ResolveThumb(img: HTMLImageElement, rel: string)
     {
         try
         {
-            const bytes = await readFile(await join(S.art, ...rel.split('/')));
-            url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
+            const [id, ...rest] = rel.split('/');
+            const bytes = memImgs.get(id)?.get(rest.join('/')) ?? await readFile(await join(S.art, ...rel.split('/')));
+            url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/webp' }));
             urls.set(key, url);
         }
         catch { return; }
@@ -508,7 +532,8 @@ function RenderDescHint()
     $('#desc').placeholder = cur ? AutoDesc(cur.body) : '';
 }
 
-function ArtNew()
+// initial = true は起動時の空の記事(まだ何も書いていないので「未保存」にしない)
+export function ArtNew(initial = false)
 {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, '0');
@@ -519,18 +544,28 @@ function ArtNew()
     const a: Article = { id, date, title: '', author: last, body: '', desc: '', thumb: '', legacy: false, cards: {} };
     articles.push(a);
     artPage = 1;   // 新しい記事は日付が新しいので、1ページ目に出る
-    Dirty();
+    if (!initial) Dirty();
     Select(a);
     $('#title').focus();
 }
 
 $('#del').onclick = async () =>
 {
-    if (!cur || !(await ask('この記事のフォルダごと削除します(画像も消えます)。', { kind: 'warning' }))) return;
+    if (!cur) return;
+    const msg = S.root ? 'この記事のフォルダごと削除します(画像も消えます)。' : 'この記事を削除します(画像も消えます)。';
+    if (!(await ask(msg, { kind: 'warning' }))) return;
     const id = cur.id;
     articles = articles.filter(a => a !== cur);
+    memImgs.delete(id);
     cur = null;
     $('#form').disabled = true;
+    if (!S.root)   // フォルダ未選択: メモリから消すだけ。編集できるよう、空の記事を開き直す
+    {
+        dirty.delete('art');
+        ArtNew(true);
+        Status('記事を削除しました');
+        return;
+    }
     try
     {
         const dir = await join(S.art, id);
@@ -603,22 +638,70 @@ function InsertEmbed()
     t.dispatchEvent(new Event('input'));
 }
 
+// カーソルのある画像の幅を変える(s=小 / m=中 / l=大)。![説明](1.webp#s) のように書き換える
+function SetImgWidth(w: 's' | 'm' | 'l')
+{
+    const t = $('#body');
+    const pos = t.selectionStart;
+    const re = /(!\[(?:\\.|[^\]\\])*\]\()([^)\s#]+)(#[sml])?\)/g;
+    for (const m of t.value.matchAll(re))
+    {
+        const s = m.index!, e = s + m[0].length;
+        if (pos < s || pos > e) continue;
+        t.setRangeText(m[1] + m[2] + (w === 'l' ? '' : '#' + w) + ')', s, e, 'end');
+        t.focus();
+        t.dispatchEvent(new Event('input'));
+        return;
+    }
+    Status('画像の行にカーソルを置いてから押してください');
+}
+
+// 書式ボタンのグループ切り替え(文字 / 段落 / 挿入 / 画像)
+$('#tooltabs').addEventListener('click', (e: Event) =>
+{
+    const b = (e.target as HTMLElement).closest('button');
+    if (!b) return;
+    document.querySelectorAll('#tooltabs button').forEach(x => x.classList.toggle('main', x === b));
+    document.querySelectorAll('#tools .tool-group').forEach((g: any) => { g.hidden = g.dataset.g !== b.dataset.g; });
+});
+
 $('#tools').addEventListener('click', (e: Event) =>
 {
     const b = (e.target as HTMLElement).closest('button');
     if (!b || !cur || cur.legacy) return;
     switch (b.dataset.f)
     {
-        case 'h':   LinePrefix('## '); break;
-        case 'b':   Wrap('**', '**', '太字'); break;
-        case 'red': Wrap('<red>', '</red>', '赤字'); break;
-        case 'big': Wrap('<big-font>', '</big-font>', '大きい文字'); break;
-        case 'ul':  LinePrefix('- '); break;
-        case 'q':   LinePrefix('> '); break;
-        case 'hr':  InsertHr(); break;
-        case 'a':   Wrap('[', '](https://)', 'リンク文字'); break;
+        // 文字
+        case 'b':     Wrap('**', '**', '太字'); break;
+        case 'i':     Wrap('*', '*', '斜体'); break;
+        case 's':     Wrap('~~', '~~', '取り消し線'); break;
+        case 'red':   Wrap('<red>', '</red>', '赤字'); break;
+        case 'blue':  Wrap('<blue>', '</blue>', '青字'); break;
+        case 'mark':  Wrap('<mark>', '</mark>', 'マーカー'); break;
+        case 'big':   Wrap('<big-font>', '</big-font>', '大きい文字'); break;
+        case 'small': Wrap('<small-font>', '</small-font>', '小さい文字'); break;
+        // 段落
+        case 'h':     LinePrefix('## '); break;
+        case 'h3':    LinePrefix('### '); break;
+        case 'q':     LinePrefix('> '); break;
+        case 'ul':    LinePrefix('- '); break;
+        case 'ol':    LinePrefix('1. '); break;
+        case 'ac':    Wrap('<align-center>', '</align-center>', '中央揃えの文字'); break;
+        case 'ar':    Wrap('<align-right>', '</align-right>', '右寄せの文字'); break;
+        case 'boxp':  Wrap('<box-point>', '</box-point>', 'ポイント'); break;
+        case 'boxw':  Wrap('<box-warn>', '</box-warn>', '注意'); break;
+        // 挿入
+        case 'a':     Wrap('[', '](https://)', 'リンク文字'); break;
         case 'embed': InsertEmbed(); break;
-        case 'toc': InsertBlock('[目次]'); break;
+        case 'toc':   InsertBlock('[目次]'); break;
+        case 'hr':    InsertHr(); break;
+        case 'table': InsertBlock('| 見出し1 | 見出し2 |\n| --- | --- |\n| 内容 | 内容 |'); break;
+        case 'fold':  InsertBlock('<details>\n<summary>タイトル</summary>\n\nここに中身(マークダウンが使えます)\n\n</details>'); break;
+        // 画像
+        case 'imgadd': $('#file').click(); break;
+        case 'imgs':  SetImgWidth('s'); break;
+        case 'imgm':  SetImgWidth('m'); break;
+        case 'imgl':  SetImgWidth('l'); break;
     }
 });
 
@@ -700,18 +783,20 @@ export function Preview()
 async function ResolveImage(img: HTMLImageElement, id: string)
 {
     const src = img.getAttribute('src') ?? '';
-    if (!S.root || /^(https?:|\/|blob:)/.test(src)) return;
+    if (/^(https?:|\/|blob:)/.test(src)) return;
     const key = id + '/' + src;
     let url = urls.get(key);
     if (!url)
     {
-        try
+        let bytes = memImgs.get(id)?.get(src);   // フォルダ未選択のときに入れた画像は、メモリから
+        if (!bytes && S.root)
         {
-            const bytes = await readFile(await join(S.art, id, src));
-            url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
-            urls.set(key, url);
+            try { bytes = await readFile(await join(S.art, id, src)); }
+            catch { return; }
         }
-        catch { return; }
+        if (!bytes) return;
+        url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/webp' }));
+        urls.set(key, url);
     }
     img.src = url;
 }
@@ -719,16 +804,21 @@ async function ResolveImage(img: HTMLImageElement, id: string)
 // ---------------------------------------------------------------- 画像の取り込み
 async function AddImages(files: File[])
 {
-    if (!S.root || !cur || cur.legacy) { await message('フォルダを選び、記事を選んでから入れてください'); return; }
+    if (!cur || cur.legacy) { await message('記事を選んでから入れてください'); return; }
 
-    // 画像は articles/<記事id>/<番号>.webp に保存
-    const dir = await join(S.art, cur.id);
-    await mkdir(dir, { recursive: true });
+    // フォルダあり: articles/<記事id>/<番号>.webp に保存 / フォルダなし: メモリに置く(書き出し・保存のときに出力)
+    const id = cur.id;
+    let mem = memImgs.get(id);
+    if (!S.root && !mem) { mem = new Map(); memImgs.set(id, mem); }
     let n = 0;
-    for (const e of await readDir(dir))
+    const Num = (name: string) => { const m = name.match(/^(\d+)\.webp$/); if (m) n = Math.max(n, parseInt(m[1])); };
+    mem?.forEach((_v, name) => Num(name));
+    let dir = '';
+    if (S.root)
     {
-        const m = e.name.match(/^(\d+)\.webp$/);
-        if (m) n = Math.max(n, parseInt(m[1]));
+        dir = await join(S.art, id);
+        await mkdir(dir, { recursive: true });
+        for (const e of await readDir(dir)) Num(e.name);
     }
 
     let text = '';
@@ -738,7 +828,9 @@ async function AddImages(files: File[])
         const blob = await ToWebp(f);
         if (!blob) continue;
         const name = `${++n}.webp`;
-        await writeFile(await join(dir, name), new Uint8Array(await blob.arrayBuffer()));
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        if (S.root) await writeFile(await join(dir, name), bytes);
+        else mem!.set(name, bytes);
         text += `\n\n![](${name})\n\n`;
     }
     if (!text) return;
@@ -750,7 +842,7 @@ async function AddImages(files: File[])
     t.setSelectionRange(i, i);
     t.focus();
     t.dispatchEvent(new Event('input'));
-    Status('画像を保存しました(記事の保存も忘れずに)');
+    Status(S.root ? '画像を保存しました(記事の保存も忘れずに)' : '画像を追加しました(保存すると、画像も入ったZIPになります)');
 }
 
 $('#addimg').onclick = () => $('#file').click();
@@ -768,43 +860,54 @@ $('#body').addEventListener('paste', (e: ClipboardEvent) =>
 
 
 
-$('#new').onclick = ArtNew;
+$('#new').onclick = () => ArtNew();
 $('#back').onclick = () => ShowView('list');
 
 // ---------------------------------------------------------------- 記事の書き出し / 取り込み(ZIP)
 // 書き出し: 編集中の内容(未保存でも)と画像を、1つのZIPにする
-$('#export').onclick = async () =>
+// フォルダ未選択のときの「保存」も、これを使う
+export async function ExportCurrent(): Promise<boolean>
 {
-    if (!cur || cur.legacy) return;
+    if (!cur || cur.legacy) return false;
     const a = cur;
     try
     {
         const meta = { date: a.date, title: a.title, author: a.author, desc: a.desc, thumb: a.thumb, body: a.body, cards: a.cards };
-        const files = [{ name: 'article.json', data: new TextEncoder().encode(JSON.stringify(meta, null, 2)) }];
-        const dir = await join(S.art, a.id);
-        if (await exists(dir))
-            for (const e of await readDir(dir))
-                if (e.isFile && /\.(webp|png|jpe?g|gif)$/i.test(e.name))
-                    files.push({ name: 'img/' + e.name, data: await readFile(await join(dir, e.name)) });
+        const files: { name: string; data: Uint8Array }[] = [{ name: 'article.json', data: new TextEncoder().encode(JSON.stringify(meta, null, 2)) }];
+        const have = new Set<string>();
+        if (S.root)
+        {
+            const dir = await join(S.art, a.id);
+            if (await exists(dir))
+                for (const e of await readDir(dir))
+                    if (e.isFile && /\.(webp|png|jpe?g|gif)$/i.test(e.name))
+                    {
+                        files.push({ name: 'img/' + e.name, data: await readFile(await join(dir, e.name)) });
+                        have.add(e.name);
+                    }
+        }
+        for (const [name, data] of memImgs.get(a.id) ?? []) if (!have.has(name)) files.push({ name: 'img/' + name, data });
         const path = await save({
             defaultPath: `${a.date}_${a.title || 'article'}.zip`.replace(/[\\/:*?"<>|]/g, '_'),
             filters: [{ name: '記事', extensions: ['zip'] }]
         });
-        if (!path) return;
+        if (!path) return false;
         await writeFile(path, ZipBuild(files));
         Status('記事を書き出しました');
+        return true;
     }
-    catch (e) { await message('書き出せませんでした: ' + e, { kind: 'error' }); }
-};
+    catch (e) { await message('書き出せませんでした: ' + e, { kind: 'error' }); return false; }
+}
+$('#export').onclick = () => { ExportCurrent(); };
 
 // 取り込み: 新しい記事として追加する。フォルダ名は、元の名前を使わず毎回つけ直す
 $('#import').onclick = () => $('#zipfile').click();
+$('#import-edit').onclick = () => $('#zipfile').click();
 $('#zipfile').onchange = async (e: any) =>
 {
     const f: File | undefined = e.target.files[0];
     e.target.value = '';
     if (!f) return;
-    if (!S.root) { await message('先にサイトのフォルダを選んでください'); return; }
     try
     {
         const files = ZipRead(new Uint8Array(await f.arrayBuffer()));
@@ -820,13 +923,26 @@ $('#zipfile').onchange = async (e: any) =>
         do { id = date.replace(/-/g, '') + '_' + Math.random().toString(36).slice(2, 6); }
         while (articles.some(a => a.id === id));
 
-        const dir = await join(S.art, id);
-        await mkdir(dir, { recursive: true });
+        const mem = new Map<string, Uint8Array>();
+        const dir = S.root ? await join(S.art, id) : '';
+        if (S.root) await mkdir(dir, { recursive: true });
         for (const x of files)
         {
             const n = x.name.startsWith('img/') ? x.name.slice(4) : '';
             if (!/^[\w.-]+\.(webp|png|jpe?g|gif)$/i.test(n)) continue;   // 画像以外・パス付きは無視
-            await writeFile(await join(dir, n), x.data);
+            if (S.root) await writeFile(await join(dir, n), x.data);
+            else mem.set(n, x.data);   // フォルダ未選択: 画像はメモリに置く
+        }
+        if (!S.root)
+        {
+            memImgs.set(id, mem);
+            // まだ何も書いていない空の記事は、取り込んだ記事に置き換える
+            const old = cur;
+            if (old && !old.title && !old.body.trim())
+            {
+                articles = articles.filter(v => v !== old);
+                memImgs.delete(old.id);
+            }
         }
         const a: Article = {
             id, date, title: m.title || '', author: m.author || '', body: m.body || '',

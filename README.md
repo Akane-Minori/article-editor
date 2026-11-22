@@ -9,7 +9,7 @@
   - 協賛・提携
 
 を編集できます  
-　利用するには[クリエイティブスタッフのプロジェクト](https://github.com/Creative-Staff/creative-staff.github.io)が必要です
+　利用するには[webページのプロジェクト](https://github.com/Creative-Staff/creative-staff.github.io)が必要です
 
 
 # 使い方

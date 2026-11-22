@@ -5,6 +5,7 @@ export const $ = (s: string) => document.querySelector(s) as any;
 export const S = { root: '', art: '', mode: 'art' as Mode };   // 選んだサイトのフォルダ / その articles / いま開いているタブ
 export const urls = new Map<string, string>();                  // 画像の表示用URLの置き場
 export const dirty = new Set<Mode>();                           // 未保存のタブ
+export const memImgs = new Map<string, Map<string, Uint8Array>>();   // フォルダ未選択のときの画像置き場(記事id → ファイル名 → 中身)
 
 export const MODE_NAME: Record<Mode, string> = { art: '記事', hist: '年表', evt: '行事', road: 'ロードマップ', spon: '協賛・提携' };
 

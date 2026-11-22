@@ -10,7 +10,7 @@
         <div class="header__inner">
             <div class="seg">
                 <button id="tab-art" class="main" type="button">記事</button>
-                <button id="tab-site" type="button">サイト設定</button>
+                <button id="tab-site" type="button" hidden>サイト設定</button>
             </div>
             <span id="status">最初にサイトのフォルダを選んでください</span>
             <button id="open" class="btn" type="button">サイトのフォルダを選ぶ</button>
@@ -27,7 +27,7 @@
                     <span class="row">
                         <button id="import" class="btn" type="button">取り込み</button>
                         <input type="file" id="zipfile" accept=".zip" hidden>
-                        <button id="new" class="btn btn--primary newbtn" type="button" disabled>新しい記事</button>
+                        <button id="new" class="btn btn--primary newbtn" type="button">新しい記事</button>
                     </span>
                 </div>
                 <nav id="list" class="list"></nav>
@@ -38,6 +38,7 @@
                 <div class="edit-bar">
                     <button id="back" class="btn" type="button">← 一覧に戻る</button>
                     <button id="export" class="btn" type="button">書き出し</button>
+                    <button id="import-edit" class="btn" type="button" hidden>取り込み</button>
                 </div>
                 <div class="edit-grid">
                     <fieldset id="form" class="pane form" disabled>
@@ -52,17 +53,48 @@
                             <textarea id="desc" rows="3"></textarea>
                         </label>
 
+                        <div id="tooltabs" class="seg seg--light">
+                            <button type="button" class="main" data-g="text">文字</button>
+                            <button type="button" data-g="para">段落</button>
+                            <button type="button" data-g="ins">挿入</button>
+                            <button type="button" data-g="img">画像</button>
+                        </div>
                         <div id="tools" class="tools">
-                            <button type="button" class="btn btn--sm" data-f="h">見出し</button>
-                            <button type="button" class="btn btn--sm" data-f="b">太字</button>
-                            <button type="button" class="btn btn--sm" data-f="red">赤字</button>
-                            <button type="button" class="btn btn--sm" data-f="big">大きい文字</button>
-                            <button type="button" class="btn btn--sm" data-f="ul">リスト</button>
-                            <button type="button" class="btn btn--sm" data-f="q">引用</button>
-                            <button type="button" class="btn btn--sm" data-f="hr">区切り線</button>
-                            <button type="button" class="btn btn--sm" data-f="a">リンク</button>
-                            <button type="button" class="btn btn--sm" data-f="embed">埋め込み</button>
-                            <button type="button" class="btn btn--sm" data-f="toc">目次</button>
+                            <div class="tool-group" data-g="text">
+                                <button type="button" class="btn btn--sm" data-f="b">太字</button>
+                                <button type="button" class="btn btn--sm" data-f="i">斜体</button>
+                                <button type="button" class="btn btn--sm" data-f="s">取り消し線</button>
+                                <button type="button" class="btn btn--sm" data-f="red">赤字</button>
+                                <button type="button" class="btn btn--sm" data-f="blue">青字</button>
+                                <button type="button" class="btn btn--sm" data-f="mark">マーカー</button>
+                                <button type="button" class="btn btn--sm" data-f="big">大きい文字</button>
+                                <button type="button" class="btn btn--sm" data-f="small">小さい文字</button>
+                            </div>
+                            <div class="tool-group" data-g="para" hidden>
+                                <button type="button" class="btn btn--sm" data-f="h">見出し(大)</button>
+                                <button type="button" class="btn btn--sm" data-f="h3">見出し(小)</button>
+                                <button type="button" class="btn btn--sm" data-f="q">引用</button>
+                                <button type="button" class="btn btn--sm" data-f="ul">リスト</button>
+                                <button type="button" class="btn btn--sm" data-f="ol">番号リスト</button>
+                                <button type="button" class="btn btn--sm" data-f="ac">中央揃え</button>
+                                <button type="button" class="btn btn--sm" data-f="ar">右寄せ</button>
+                                <button type="button" class="btn btn--sm" data-f="boxp">枠(ポイント)</button>
+                                <button type="button" class="btn btn--sm" data-f="boxw">枠(注意)</button>
+                            </div>
+                            <div class="tool-group" data-g="ins" hidden>
+                                <button type="button" class="btn btn--sm" data-f="a">リンク</button>
+                                <button type="button" class="btn btn--sm" data-f="embed">埋め込み</button>
+                                <button type="button" class="btn btn--sm" data-f="toc">目次</button>
+                                <button type="button" class="btn btn--sm" data-f="hr">区切り線</button>
+                                <button type="button" class="btn btn--sm" data-f="table">表</button>
+                                <button type="button" class="btn btn--sm" data-f="fold">折りたたみ</button>
+                            </div>
+                            <div class="tool-group" data-g="img" hidden>
+                                <button type="button" class="btn btn--sm" data-f="imgadd">画像を挿入</button>
+                                <button type="button" class="btn btn--sm" data-f="imgs">幅:小</button>
+                                <button type="button" class="btn btn--sm" data-f="imgm">幅:中</button>
+                                <button type="button" class="btn btn--sm" data-f="imgl">幅:大</button>
+                            </div>
                         </div>
 
                         <label>本文(マークダウン)<textarea id="body"></textarea></label>

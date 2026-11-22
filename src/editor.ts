@@ -1,7 +1,7 @@
 import './styles.css';
 import { open } from '@tauri-apps/plugin-dialog';
 import { $, S, dirty, MODE_NAME, Status, type Mode } from './common';
-import { ALoad, ASave, ArticleCount, ShowView, Preview } from './articles';
+import { ALoad, ASave, ArticleCount, ShowView, Preview, ArtNew } from './articles';
 import { HLoad, HSave, ELoad, ESave, RLoad, RSave, SLoad, SSave } from './about-pages';
 
 // 起動・フォルダ選択・保存・タブ切り替え
@@ -15,8 +15,11 @@ let lastSite: Mode = 'hist';
 // ---------------------------------------------------------------- フォルダ操作
 async function LoadFolder(path: string, remember = true): Promise<boolean>
 {
-    if (!(await ALoad(path))) return false;
+    const carry = !S.root && dirty.has('art');   // 未選択で編集していた記事を引き継ぐ
+    if (!(await ALoad(path, !remember))) return false;   // 起動時の自動読み込み(remember=false)は、失敗しても警告しない
     dirty.clear();
+    if (carry) dirty.add('art');
+    $('#tab-site').hidden = false;
     if (remember) localStorage.setItem('root', path);
     document.querySelectorAll('.newbtn').forEach((b: any) => b.disabled = false);
     $('#save').disabled = false;
@@ -39,7 +42,7 @@ $('#open').onclick = async () =>
 // 保存は、未保存のタブ全部を一度に行う(失敗したタブは未保存のまま残す)
 async function Save()
 {
-    if (!S.root) return;
+    if (!S.root) return;   // フォルダ未選択のときは保存できない(記事は「書き出し」でZIPにする)
     const saver: Record<Mode, () => Promise<boolean>> = { art: ASave, hist: HSave, evt: ESave, road: RSave, spon: SSave };
     const targets = [...dirty];
     if (targets.length === 0) { Status('未保存の変更はありません'); return; }
@@ -69,7 +72,7 @@ function SetMode(m: Mode)
         $(PANE_ID[k]).hidden = k !== m;
         $(SUBTAB_ID[k]).classList.toggle('main', k === m);
     }
-    if (isArt) ShowView('list');
+    if (isArt) ShowView(S.root ? 'list' : 'edit');
     window.scrollTo(0, 0);
 }
 $('#tab-art').onclick = () => SetMode('art');
@@ -79,6 +82,8 @@ for (const k of SITE_MODES) $(SUBTAB_ID[k]).onclick = () => SetMode(k);
 // ---------------------------------------------------------------- 起動
 Preview();
 SetMode('art');
-// 前回のフォルダを自動で開く(開けなければ何もしない)
+// 前回のフォルダを自動で開く(開けなければ、フォルダなしで空の記事を開く)
+function StartOffline() { if (!S.root) ArtNew(); }
 const last = localStorage.getItem('root');
-if (last) LoadFolder(last, false).catch(() => {});
+if (last) LoadFolder(last, false).then(ok => { if (!ok) StartOffline(); }).catch(StartOffline);
+else StartOffline();
